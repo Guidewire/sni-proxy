@@ -72,7 +72,8 @@ func newSingleHostReverseProxyWithHeaders(target *url.URL) *httputil.ReverseProx
 	director := func(req *http.Request) {
 		req.URL.Scheme = target.Scheme
 		req.URL.Host = target.Host
-		req.Host = target.Host
+		req.Header.Set("X-Real-IP", strings.Split(req.RemoteAddr, ":")[0])
+		req.Header.Set("X-Forwarded-Ssl", "on")
 		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)
 		if targetQuery == "" || req.URL.RawQuery == "" {
 			req.URL.RawQuery = targetQuery + req.URL.RawQuery
