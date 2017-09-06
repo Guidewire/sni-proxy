@@ -167,7 +167,7 @@ func main() {
 	}
 
 	accessLogger := &lumberjack.Logger{
-		Filename:   cfg.ErrorLog,
+		Filename:   cfg.AccessLog,
 		MaxSize:    cfg.LogMaxSizeMB,
 		MaxBackups: cfg.LogMaxBackups,
 		MaxAge:     cfg.LogMaxAgeDays,
