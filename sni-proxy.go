@@ -26,6 +26,7 @@ type Config struct {
 	CrtFilePath   string        `yaml:"certificate_crt_path"`
 	KeyFilePath   string        `yaml:"certificate_key_path"`
 	ListenHttps   string        `yaml:"listen_https_address"`
+	ListenHttp    string        `yaml:"listen_http_address"`
 	AccessLog     string        `yaml:"access_log"`
 	ErrorLog      string        `yaml:"error_log"`
 	LogMaxSizeMB  int           `yaml:"log_max_size_mb"`
@@ -57,14 +58,6 @@ func singleJoiningSlash(a, b string) string {
 		return a + "/" + b
 	}
 	return a + b
-}
-
-func headerByName(req *http.Request, header string) string {
-	if values, ok := req.Header[header]; ok && len(values) > 0 {
-		return values[0]
-	} else {
-		return "-"
-	}
 }
 
 func newSingleHostReverseProxyWithHeaders(target *url.URL) *httputil.ReverseProxy {
@@ -223,5 +216,8 @@ func main() {
 			errLogger.Rotate()
 		}
 	}()
+	if cfg.ListenHttp != "" {
+		go log.Fatal(server.ListenAndServe())
+	}
 	log.Fatal(server.ListenAndServeTLS("", ""))
 }
