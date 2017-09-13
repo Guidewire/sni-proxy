@@ -67,6 +67,7 @@ func newSingleHostReverseProxyWithHeaders(target *url.URL) *httputil.ReverseProx
 		req.URL.Host = target.Host
 		req.Header.Set("X-Real-IP", strings.Split(req.RemoteAddr, ":")[0])
 		req.Header.Set("X-Forwarded-Ssl", "on")
+		req.Header.Set("X-Forwarded-Proto", "https")
 		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)
 		if targetQuery == "" || req.URL.RawQuery == "" {
 			req.URL.RawQuery = targetQuery + req.URL.RawQuery
@@ -167,21 +168,24 @@ func main() {
 		MaxAge:     cfg.LogMaxAgeDays,
 	}
 
-	server := http.Server{
-		Addr: cfg.ListenHttps,
-		Handler: handlers.LoggingHandler(
-			accessLogger, http.HandlerFunc(
-				reverseProxy,
-			),
+	handler := handlers.LoggingHandler(
+		accessLogger, http.HandlerFunc(
+			reverseProxy,
 		),
-		// waiting for https://github.com/NYTimes/gziphandler/issues/40#issuecomment-325179025
-		// Handler: gziphandler.GzipHandler(
-		// 	handlers.LoggingHandler(
-		// 		logFile, http.HandlerFunc(
-		// 			reverseProxy,
-		// 		),
-		// 	),
-		// ),
+	)
+
+	// waiting for https://github.com/NYTimes/gziphandler/issues/40#issuecomment-325179025
+	// handler := gziphandler.GzipHandler(
+	// 		handlers.LoggingHandler(
+	// 			logFile, http.HandlerFunc(
+	// 				reverseProxy,
+	// 			),
+	// 		),
+	// 	)
+
+	server := http.Server{
+		Addr:      cfg.ListenHttps,
+		Handler:   handler,
 		TLSConfig: tlsConf,
 	}
 
@@ -217,7 +221,11 @@ func main() {
 		}
 	}()
 	if cfg.ListenHttp != "" {
-		go log.Fatal(server.ListenAndServe())
+		log.Printf("Listening for HTTP on %s", cfg.ListenHttp)
+		go func() {
+			log.Fatal(http.ListenAndServe(cfg.ListenHttp, handler))
+		}()
 	}
+	log.Printf("Listening for HTTPS on %s", cfg.ListenHttps)
 	log.Fatal(server.ListenAndServeTLS("", ""))
 }

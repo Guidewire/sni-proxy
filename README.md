@@ -23,3 +23,5 @@ proxies:
     target: "http://127.0.0.1:8080"
 
 ```
+
+Note that there's also an `listen_http_address` option but proxy will still add all the https X headers to these requests.
