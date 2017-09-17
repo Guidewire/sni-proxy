@@ -14,6 +14,9 @@ log_max_size_mb: 500
 log_max_backups: 3
 log_max_age_days: 20
 pid_file: "sni-proxy.pid"
+fix_header_names:
+  X-Jenkins-Jnlp-Port: X-Jenkins-JNLP-Port
+  X-Hudson-Jnlp-Port: X-Hudson-JNLP-Port
 proxies:
   - hostname: host2
     target: "http://127.0.0.1:9000"

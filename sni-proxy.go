@@ -23,17 +23,18 @@ var config_path = flag.String("c", "config.yaml", "Path to a config file")
 var cfg = Config{}
 
 type Config struct {
-	CrtFilePath   string        `yaml:"certificate_crt_path"`
-	KeyFilePath   string        `yaml:"certificate_key_path"`
-	ListenHttps   string        `yaml:"listen_https_address"`
-	ListenHttp    string        `yaml:"listen_http_address"`
-	AccessLog     string        `yaml:"access_log"`
-	ErrorLog      string        `yaml:"error_log"`
-	LogMaxSizeMB  int           `yaml:"log_max_size_mb"`
-	LogMaxBackups int           `yaml:"log_max_backups"`
-	LogMaxAgeDays int           `yaml:"log_max_age_days"`
-	PidFile       string        `yaml:"pid_file"`
-	Proxies       []ProxyConfig `yaml:"proxies"`
+	CrtFilePath    string            `yaml:"certificate_crt_path"`
+	KeyFilePath    string            `yaml:"certificate_key_path"`
+	ListenHttps    string            `yaml:"listen_https_address"`
+	ListenHttp     string            `yaml:"listen_http_address"`
+	AccessLog      string            `yaml:"access_log"`
+	ErrorLog       string            `yaml:"error_log"`
+	LogMaxSizeMB   int               `yaml:"log_max_size_mb"`
+	LogMaxBackups  int               `yaml:"log_max_backups"`
+	LogMaxAgeDays  int               `yaml:"log_max_age_days"`
+	PidFile        string            `yaml:"pid_file"`
+	Proxies        []ProxyConfig     `yaml:"proxies"`
+	FixHeaderNames map[string]string `yaml:"fix_header_names"`
 }
 
 type ProxyConfig struct {
@@ -84,12 +85,9 @@ func newSingleHostReverseProxyWithHeaders(target *url.URL) *httputil.ReverseProx
 
 func reverseProxy(w http.ResponseWriter, request *http.Request) {
 	var target string
-	// log.Printf("Request host: %s", request.Host)
 	if proxy, ok := hostMap[request.Host]; ok {
-		// log.Printf("Detected: %s, proxy to %s", request.Host, proxy.Target)
 		target = proxy.Target
 	} else if proxy, ok := hostMap["*"]; ok {
-		// log.Printf("Detected: *, proxy to %s", proxy.Target)
 		target = proxy.Target
 	} else {
 		log.Printf("Unknown host %s", request.Host)
@@ -99,7 +97,29 @@ func reverseProxy(w http.ResponseWriter, request *http.Request) {
 		log.Printf("Proxy error: %#v", err)
 	}
 	proxy := newSingleHostReverseProxyWithHeaders(url)
+
 	proxy.ServeHTTP(w, request)
+}
+
+func headerAdjustHandler(fn http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		hrp := fixHeaderWriter{ResponseWriter: w}
+		fn(hrp, r)
+	}
+}
+
+type fixHeaderWriter struct {
+	http.ResponseWriter
+}
+
+func (w fixHeaderWriter) WriteHeader(code int) {
+	for name, newName := range cfg.FixHeaderNames {
+		if values, ok := w.Header()[name]; ok {
+			w.Header().Del(name)
+			w.Header()[newName] = values
+		}
+	}
+	w.ResponseWriter.WriteHeader(code)
 }
 
 func removePid() {
@@ -168,9 +188,15 @@ func main() {
 		MaxAge:     cfg.LogMaxAgeDays,
 	}
 
+	var proxyHandler http.HandlerFunc
+	if len(cfg.FixHeaderNames) > 0 {
+		proxyHandler = headerAdjustHandler(reverseProxy)
+	} else {
+		proxyHandler = reverseProxy
+	}
 	handler := handlers.LoggingHandler(
 		accessLogger, http.HandlerFunc(
-			reverseProxy,
+			proxyHandler,
 		),
 	)
 
